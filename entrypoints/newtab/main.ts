@@ -1,4 +1,5 @@
 import './style.css';
+import { Artwork, loadArtworkCollection } from '@/lib/art';
 import {
   addGroup,
   addQuickTaskToPlan,
@@ -13,12 +14,11 @@ import {
   getTasksByGroup,
   isTaskActiveOnDate,
   removePlanItem,
-  setTheme,
+  setArtworkIndex,
   TaskKind,
   togglePlanItem,
   togglePlanSubtask,
   toggleTaskAutoAdd,
-  ThemeMode,
 } from '@/lib/state';
 import { formatDateChip, formatDisplayDate, recentDateKeys, todayDateKey } from '@/lib/date';
 import { loadState, saveState } from '@/lib/storage';
@@ -36,12 +36,11 @@ const todayKey = todayDateKey();
 let selectedDateKey = todayKey;
 let state = ensureRecentPlans(await loadState(), todayKey);
 let boardGroupId = state.groups[0]?.id ?? '';
-
-const themeOptions: Array<{ value: ThemeMode; label: string }> = [
-  { value: 'sage', label: '护眼' },
-  { value: 'paper', label: '素白' },
-  { value: 'midnight', label: '夜航' },
-];
+let artworks: Artwork[] = [];
+let artworkLoading = true;
+let artworkError: string | null = null;
+let artworkImageReady = false;
+let artworkLoadToken = 0;
 
 function escapeHtml(value: string): string {
   return value
@@ -66,10 +65,6 @@ function navigate(route: RouteName): void {
   render();
 }
 
-function applyTheme(): void {
-  document.documentElement.dataset.theme = state.ui.theme;
-}
-
 function syncBoardGroup(currentState: AppState): string {
   if (currentState.groups.some((group) => group.id === boardGroupId)) {
     return boardGroupId;
@@ -77,6 +72,102 @@ function syncBoardGroup(currentState: AppState): string {
 
   boardGroupId = currentState.groups[0]?.id ?? '';
   return boardGroupId;
+}
+
+function currentArtwork(): Artwork | null {
+  if (!artworks.length) {
+    return null;
+  }
+
+  const index = ((state.ui.artworkIndex % artworks.length) + artworks.length) % artworks.length;
+  return artworks[index];
+}
+
+function focusQuickTaskInput(): void {
+  const input = app.querySelector<HTMLInputElement>('form[data-form="quick-task"] input[name="title"]');
+  input?.focus();
+}
+
+function preloadImage(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error(`Failed to preload image: ${url}`));
+    image.src = url;
+  });
+}
+
+async function showArtworkAtIndex(index: number, persist = true): Promise<void> {
+  if (!artworks.length) {
+    return;
+  }
+
+  const nextIndex = ((index % artworks.length) + artworks.length) % artworks.length;
+  const artwork = artworks[nextIndex];
+  const loadToken = ++artworkLoadToken;
+
+  state = setArtworkIndex(state, nextIndex);
+  artworkLoading = true;
+  artworkImageReady = false;
+  artworkError = null;
+  render();
+
+  try {
+    await preloadImage(artwork.image);
+    if (loadToken !== artworkLoadToken) {
+      return;
+    }
+
+    artworkImageReady = true;
+    artworkLoading = false;
+    console.log('Current artwork URL:', artwork.image);
+    render();
+
+    if (persist) {
+      await saveState(state);
+    }
+  } catch (error) {
+    if (loadToken !== artworkLoadToken) {
+      return;
+    }
+
+    console.error(error);
+    artworkLoading = false;
+    artworkImageReady = false;
+    artworkError = '艺术图片加载失败';
+    render();
+  }
+}
+
+async function persistAndRender(nextState: AppState): Promise<void> {
+  state = ensureRecentPlans(nextState, todayKey);
+  render();
+  await saveState(state);
+}
+
+async function loadArtworksIntoView(): Promise<void> {
+  artworkLoading = true;
+  artworkImageReady = false;
+  artworkError = null;
+  render();
+
+  try {
+    artworks = await loadArtworkCollection();
+    if (artworks.length) {
+      const nextIndex = Math.floor(Math.random() * artworks.length);
+      await showArtworkAtIndex(nextIndex);
+      return;
+    }
+  } catch (error) {
+    console.error(error);
+    artworkError = '艺术数据加载失败';
+  } finally {
+    if (!artworks.length || artworkError) {
+      artworkLoading = false;
+      render();
+    }
+  }
 }
 
 function planStats(currentState: AppState, dateKey: string): { total: number; completed: number } {
@@ -89,13 +180,6 @@ function planStats(currentState: AppState, dateKey: string): { total: number; co
     total: plan.items.length,
     completed: plan.items.filter((item) => item.completed).length,
   };
-}
-
-function persistAndRender(nextState: AppState): Promise<void> {
-  state = ensureRecentPlans(nextState, todayKey);
-  applyTheme();
-  render();
-  return saveState(state);
 }
 
 function exportJson(): void {
@@ -121,33 +205,16 @@ function exportJson(): void {
   URL.revokeObjectURL(url);
 }
 
-function renderHeader(route: RouteName): string {
+function renderEditHeader(): string {
   return `
-    <header class="topbar">
-      <div class="topbar__brand">
-        <span class="topbar__eyebrow">Linear-ish / Local First</span>
-        <strong>晨页</strong>
+    <header class="edit-topbar">
+      <div class="edit-topbar__brand">
+        <span class="panel__eyebrow">Template Editor</span>
+        <strong>模板维护</strong>
       </div>
-      <div class="topbar__actions">
-        <div class="theme-switcher">
-          ${themeOptions
-            .map(
-              (theme) => `
-                <button
-                  class="tool-button ${theme.value === state.ui.theme ? 'tool-button--active' : ''}"
-                  data-action="set-theme"
-                  data-theme="${theme.value}"
-                >
-                  ${theme.label}
-                </button>
-              `,
-            )
-            .join('')}
-        </div>
+      <div class="edit-topbar__actions">
         <button class="tool-button" data-action="export-json">导出 JSON</button>
-        <button class="tool-button tool-button--strong" data-action="${route === 'edit' ? 'open-board' : 'open-edit'}">
-          ${route === 'edit' ? '返回计划' : '编辑模板'}
-        </button>
+        <button class="tool-button tool-button--strong" data-action="open-board">返回展墙</button>
       </div>
     </header>
   `;
@@ -159,7 +226,7 @@ function renderPlan(currentState: AppState): string {
     return `
       <div class="plan-empty">
         <p>此日尚无计划。</p>
-        <p>从编辑页挑几件真要做的事，拖回现实。</p>
+        <p>从下方模板入口摘几件正事，或直接记一条今日任务。</p>
       </div>
     `;
   }
@@ -188,7 +255,7 @@ function renderPlan(currentState: AppState): string {
                       ? '自动入列'
                       : item.origin === 'quick'
                         ? '今日速记'
-                      : '手动摘取'
+                        : '手动摘取'
                   }
                 </span>
                 <button class="text-button text-button--danger" data-action="remove-plan-item" data-item-id="${item.id}">
@@ -236,14 +303,11 @@ function renderTemplateQuickPanel(currentState: AppState): string {
   const tasks = tasksByGroup.get(groupId) ?? [];
 
   return `
-    <section class="panel panel--compact">
-      <div class="panel__header">
-        <div>
-          <p class="panel__eyebrow">Template Entry</p>
-          <strong class="panel__title">从模板加入 ${selectedDateKey === todayKey ? '今日' : '此日'}</strong>
-        </div>
+    <section class="rail-section">
+      <div class="rail-section__header">
+        <p class="panel__eyebrow">Templates</p>
+        <strong class="panel__title">添加模板</strong>
       </div>
-
       <div class="group-switcher">
         ${currentState.groups
           .map(
@@ -259,7 +323,6 @@ function renderTemplateQuickPanel(currentState: AppState): string {
           )
           .join('')}
       </div>
-
       ${
         tasks.length
           ? `
@@ -295,59 +358,125 @@ function renderTemplateQuickPanel(currentState: AppState): string {
   `;
 }
 
+function renderArtworkStage(): string {
+  const artwork = currentArtwork();
+
+  if (artworkLoading || !artworkImageReady) {
+    return `
+      <section class="gallery-stage">
+        <div class="gallery-wall">
+          <div class="art-loading">载入画作中…</div>
+        </div>
+      </section>
+    `;
+  }
+
+  if (artworkError || !artwork) {
+    return `
+      <section class="gallery-stage">
+        <div class="gallery-wall">
+          <div class="art-loading">${artworkError ?? '暂无画作'}</div>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="gallery-stage">
+      <div class="gallery-wall">
+        <div class="gallery-hotspot gallery-hotspot--left" aria-hidden="true">
+          <button class="gallery-nav gallery-nav--left" data-action="previous-art" aria-label="上一幅">
+            <span class="gallery-nav__glyph">‹</span>
+          </button>
+        </div>
+        <div class="art-stage">
+          <div class="frame-wrapper">
+            <div class="frame-shell">
+              <div class="frame-media">
+                <img class="frame-image" src="${escapeHtml(artwork.image)}" alt="${escapeHtml(artwork.title)}" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="gallery-hotspot gallery-hotspot--right" aria-hidden="true">
+          <button class="gallery-nav gallery-nav--right" data-action="next-art" aria-label="下一幅">
+            <span class="gallery-nav__glyph">›</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderBoard(currentState: AppState): string {
   const stats = planStats(currentState, selectedDateKey);
   const dates = recentDateKeys(todayKey);
 
   return `
-    <div class="screen screen--board">
-      ${renderHeader('board')}
-      <section class="hero">
-        <div>
-          <p class="hero__eyebrow">Today Plan</p>
-          <h1>${formatDisplayDate(selectedDateKey)}</h1>
-        </div>
-        <div class="hero__stat">
-          <span>完成</span>
-          <strong>${stats.completed} / ${stats.total}</strong>
-        </div>
-      </section>
+    <div class="screen screen--board immersive-board">
+      <div class="board-chrome">
+        <span>晨页</span>
+        <span>${formatDisplayDate(selectedDateKey)}</span>
+      </div>
+      <div class="gallery-layout gallery-layout--immersive">
+        ${renderArtworkStage()}
 
-      ${
-        selectedDateKey === todayKey
-          ? `
-            <form class="form-card form-card--quick" data-form="quick-task">
-              <label class="field field--wide">
-                <span>今日直接添加</span>
-                <input name="title" maxlength="60" placeholder="只进今日，不入模板池" required />
-              </label>
-              <button type="submit">添加单次任务</button>
-            </form>
-          `
-          : ''
-      }
+        <aside class="task-rail task-rail--immersive">
+          <div class="rail-toolbar">
+            <button class="tool-button tool-button--ghost" data-action="export-json">导出</button>
+            <button class="tool-button tool-button--ghost" data-action="open-edit">模板</button>
+          </div>
 
-      ${renderTemplateQuickPanel(currentState)}
+          <section class="rail-section rail-section--hero rail-section--flat">
+            <p class="panel__eyebrow">Plan</p>
+            <h1>${formatDisplayDate(selectedDateKey)}</h1>
+            <div class="hero-stat">
+              <span>完成</span>
+              <strong>${stats.completed} / ${stats.total}</strong>
+            </div>
+          </section>
 
-      <nav class="date-strip" aria-label="最近日期">
-        ${dates
-          .map(
-            (dateKey) => `
-              <button
-                class="date-chip ${dateKey === selectedDateKey ? 'is-active' : ''}"
-                data-action="select-date"
-                data-date-key="${dateKey}"
-              >
-                ${formatDateChip(dateKey, todayKey)}
-              </button>
-            `,
-          )
-          .join('')}
-      </nav>
+          <nav class="date-strip" aria-label="最近日期">
+            ${dates
+              .map(
+                (dateKey) => `
+                  <button
+                    class="date-chip ${dateKey === selectedDateKey ? 'is-active' : ''}"
+                    data-action="select-date"
+                    data-date-key="${dateKey}"
+                  >
+                    ${formatDateChip(dateKey, todayKey)}
+                  </button>
+                `,
+              )
+              .join('')}
+          </nav>
 
-      <section class="panel">
-        ${renderPlan(currentState)}
-      </section>
+          ${
+            selectedDateKey === todayKey
+              ? `
+                <form class="form-card form-card--quick form-card--ghost" data-form="quick-task">
+                  <label class="field field--wide">
+                    <span>今日速记</span>
+                    <input name="title" maxlength="60" placeholder="只进今日" required />
+                  </label>
+                  <button type="submit">添加</button>
+                </form>
+              `
+              : ''
+          }
+
+          <section class="rail-section rail-section--plan rail-section--flat">
+            <div class="rail-section__header">
+              <p class="panel__eyebrow">Tasks</p>
+              <strong class="panel__title">${stats.total} 项</strong>
+            </div>
+            ${renderPlan(currentState)}
+          </section>
+
+          ${renderTemplateQuickPanel(currentState)}
+        </aside>
+      </div>
     </div>
   `;
 }
@@ -438,7 +567,7 @@ function renderEdit(currentState: AppState): string {
 
   return `
     <div class="screen screen--edit">
-      ${renderHeader('edit')}
+      ${renderEditHeader()}
       <section class="edit-shell">
         <aside class="edit-sidebar">
           <div class="panel panel--dense">
@@ -534,7 +663,6 @@ app.addEventListener('submit', async (event) => {
 
     const kind = String(formData.get('kind') ?? 'once') as TaskKind;
     const autoAddToPlan = kind === 'daily' && formData.get('autoAddToPlan') === 'on';
-
     await persistAndRender(addTask(state, groupId, String(formData.get('title') ?? ''), kind, autoAddToPlan));
     form.reset();
     return;
@@ -542,7 +670,7 @@ app.addEventListener('submit', async (event) => {
 
   if (formType === 'quick-task') {
     await persistAndRender(addQuickTaskToPlan(state, todayKey, String(formData.get('title') ?? '')));
-    form.reset();
+    focusQuickTaskInput();
     return;
   }
 
@@ -580,11 +708,14 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
-  if (action === 'set-theme') {
-    const theme = actionNode.dataset.theme as ThemeMode | undefined;
-    if (theme) {
-      await persistAndRender(setTheme(state, theme));
+  if (action === 'previous-art' || action === 'next-art') {
+    if (!artworks.length) {
+      return;
     }
+
+    const offset = action === 'next-art' ? 1 : -1;
+    const nextIndex = ((state.ui.artworkIndex + offset) % artworks.length + artworks.length) % artworks.length;
+    await showArtworkAtIndex(nextIndex);
     return;
   }
 
@@ -673,6 +804,6 @@ app.addEventListener('change', async (event) => {
 
 window.addEventListener('hashchange', render);
 
-applyTheme();
 render();
 await saveState(state);
+void loadArtworksIntoView();

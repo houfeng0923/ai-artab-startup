@@ -3,6 +3,7 @@ import { compareDateKey, recentDateKeys, todayDateKey } from '@/lib/date';
 export type TaskKind = 'once' | 'daily';
 export type PlanOrigin = 'manual' | 'daily' | 'quick';
 export type ThemeMode = 'sage' | 'paper' | 'midnight';
+export type ArtworkSource = 'artab';
 
 export interface Group {
   id: string;
@@ -52,6 +53,8 @@ export interface DailyPlan {
 
 export interface UiState {
   theme: ThemeMode;
+  artworkSource: ArtworkSource;
+  artworkIndex: number;
 }
 
 export interface AppState {
@@ -119,6 +122,8 @@ export function createInitialState(): AppState {
     dailyPlans: {},
     ui: {
       theme: 'sage',
+      artworkSource: 'artab',
+      artworkIndex: 0,
     },
   };
 }
@@ -243,6 +248,8 @@ export function hydrateState(value: unknown): AppState {
     ),
     ui: {
       theme: normalizeTheme(candidate.ui?.theme),
+      artworkSource: 'artab',
+      artworkIndex: typeof candidate.ui?.artworkIndex === 'number' ? candidate.ui.artworkIndex : 0,
     },
   };
 
@@ -377,6 +384,20 @@ export function setTheme(state: AppState, theme: ThemeMode): AppState {
     ui: {
       ...state.ui,
       theme,
+    },
+  };
+}
+
+export function setArtworkIndex(state: AppState, artworkIndex: number): AppState {
+  if (state.ui.artworkIndex === artworkIndex) {
+    return state;
+  }
+
+  return {
+    ...state,
+    ui: {
+      ...state.ui,
+      artworkIndex,
     },
   };
 }

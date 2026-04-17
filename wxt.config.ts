@@ -7,5 +7,11 @@ export default defineConfig({
     name: '晨页',
     description: 'A local-first new tab page for grouped tasks, daily plans, and short history.',
     permissions: ['storage'],
+    host_permissions: [
+      'https://www.gstatic.com/*',
+      'https://lh3.ggpht.com/*',
+      'https://artab-files.owenyoung.com/*',
+      'https://artsandculture.google.com/*',
+    ],
   },
 });
