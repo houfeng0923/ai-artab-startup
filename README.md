@@ -1,13 +1,15 @@
-# 晨页
+# Chenye
 
-一个基于 `WXT` 的 Chrome New Tab 扩展。
+An art-first, local-first Chrome new tab built with `WXT`.
 
-它做两件事：
+The page does two jobs:
 
-1. 中间用沉浸式艺术图做展墙
-2. 右侧用本地优先的任务栏管理今日计划
+1. Show an immersive artwork in the center
+2. Keep a compact planning panel on the right
 
-当前艺术数据沿用 `Artab: New Tab, New Art` 路线，读取 Google Arts 的公开集合，并在本地缓存；任务数据存于浏览器本地存储。
+This project currently follows the public artwork feed approach used by `Artab: New Tab, New Art`, while keeping task data entirely local.
+
+中文说明见：[README.zh-CN.md](./README.zh-CN.md)
 
 ## Features
 
@@ -16,9 +18,9 @@
 - subtasks with independent checkbox state
 - today plan plus recent 5-day history
 - quick add for "today only" notes
-- remove template task from a single day without deleting the template
+- remove a template task from a single day without deleting the template
 - local-first storage with JSON export
-- immersive new tab art wall with random artwork on each open
+- immersive artwork wall with a random artwork on each fresh tab open
 
 ## Stack
 
@@ -39,45 +41,45 @@ pnpm dev
 pnpm build
 ```
 
-产物输出到：
+The production output is generated at:
 
 ```text
 output/chrome-mv3
 ```
 
-然后在 Chrome 里：
+Then load it in Chrome:
 
-1. 打开 `chrome://extensions`
-2. 开启 `Developer mode`
-3. 选择 `Load unpacked`
-4. 指向 `output/chrome-mv3`
+1. Open `chrome://extensions`
+2. Enable `Developer mode`
+3. Click `Load unpacked`
+4. Select `output/chrome-mv3`
 
-## Data
+## Data Model
 
 ### Tasks
 
-任务分成两层：
+Tasks are split into two layers:
 
-- `TaskTemplate`: 长期模板
-- `DailyPlan`: 某一天的任务实例与完成状态
+- `TaskTemplate`: long-lived template data
+- `DailyPlan`: per-day task instances and completion state
 
-这能避免“改模板污染历史”这种烂事。
+This avoids the classic bug where changing a template corrupts historical records.
 
 ### Artwork
 
-默认从下列远程源读取：
+Artwork is currently loaded from:
 
 - `https://www.gstatic.com/culturalinstitute/tabext/imax_2_2.json`
 - image hosts under `lh3.ggpht.com`
 
-若远程取数失败，会退回内置兜底画作。
+If the remote source fails, the extension falls back to bundled artwork items.
 
 ## Scripts
 
-- `pnpm dev`: run extension dev server
-- `pnpm build`: build production extension
+- `pnpm dev`: run the extension dev server
+- `pnpm build`: build the production extension
 - `pnpm compile`: type-check only
-- `pnpm zip`: package extension zip
+- `pnpm zip`: package the extension as a zip
 
 ## Current Notes
 
@@ -85,8 +87,8 @@ output/chrome-mv3
 - no cloud sync
 - no reminder/notification workflow yet
 - no import flow yet, only JSON export
-- new tab artwork changes randomly on each fresh page open
+- the new tab artwork changes randomly on each fresh page open
 
-## License / Attribution
+## Attribution
 
-本项目当前只“参考” `Artab` 的展示方向与公开数据入口，不直接拷贝其项目代码。
+This project references the display direction and public data-entry approach of `Artab`, but does not copy its project code.
