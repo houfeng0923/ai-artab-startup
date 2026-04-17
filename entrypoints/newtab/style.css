@@ -269,14 +269,14 @@ select:focus {
   flex-direction: column;
   gap: 6px;
   padding: 10px;
-  border: 1px solid rgba(18, 15, 10, 0.24);
+  border: 1px solid rgba(18, 15, 10, 0.28);
   border-radius: 10px;
   background:
-    linear-gradient(180deg, rgba(222, 214, 201, 0.96) 0%, rgba(211, 202, 187, 0.94) 100%);
+    linear-gradient(180deg, rgba(222, 214, 201, 0.62) 0%, rgba(211, 202, 187, 0.5) 100%);
   box-shadow:
     0 16px 44px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(8px);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(16px) saturate(1.08);
 }
 
 .rail-toolbar,
@@ -299,7 +299,7 @@ select:focus {
 .rail-toolbar {
   justify-content: flex-end;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(38, 33, 25, 0.14);
+  border-bottom: 1px solid rgba(38, 33, 25, 0.18);
 }
 
 .panel__eyebrow {
@@ -323,7 +323,7 @@ select:focus {
   padding: 0.44rem 0.58rem;
   border: 1px solid var(--panel-line);
   border-radius: var(--radius-sm);
-  background: rgba(247, 243, 236, 0.58);
+  background: rgba(247, 243, 236, 0.72);
   color: var(--panel-text);
   transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
@@ -359,7 +359,7 @@ select:focus {
   padding: 8px 0;
   border: 0;
   border-radius: 0;
-  border-top: 1px solid rgba(38, 33, 25, 0.14);
+  border-top: 1px solid rgba(38, 33, 25, 0.18);
   background: transparent;
 }
 
@@ -411,7 +411,7 @@ select:focus {
 .task-card {
   border: 1px solid var(--panel-line);
   border-radius: var(--radius-md);
-  background: rgba(248, 243, 235, 0.42);
+  background: rgba(248, 243, 235, 0.54);
 }
 
 .form-card {
@@ -421,8 +421,8 @@ select:focus {
 }
 
 .form-card--ghost {
-  background: rgba(248, 243, 235, 0.28);
-  border-color: rgba(38, 33, 25, 0.14);
+  background: rgba(248, 243, 235, 0.4);
+  border-color: rgba(38, 33, 25, 0.18);
 }
 
 .field,
